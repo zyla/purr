@@ -27,7 +27,7 @@ enum Command {
 }
 
 fn main() -> std::io::Result<()> {
-    let mut db = purs_oxide::Database::new();
+    let mut db = purs_oxide::Database::new_with_prelude();
     match Command::parse() {
         Command::Parse { files } => {
             purs_oxide::utils::load_files(&mut db, files);
@@ -67,7 +67,7 @@ fn main() -> std::io::Result<()> {
                 Some(abs) => abs,
                 None => panic!("invalid entrypoint {}", entrypoint),
             };
-            let code = purs_oxide::codegen::bundle(&db, BundleMode::Export, entrypoint);
+            let (code, _ffi) = purs_oxide::codegen::bundle(&db, BundleMode::Export, entrypoint);
             println!("{}", code);
         }
     }

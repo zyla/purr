@@ -34,9 +34,12 @@ pub struct Jar(
     crate::typecheck::type_of_value,
     crate::typecheck::typecheck_module,
     crate::codegen::value_decl_code_acc,
+    crate::codegen::value_decl_ffi_code_acc,
+    crate::codegen::scc_ffi_code_acc,
     crate::codegen::scc_code_acc,
     crate::codegen::scc_code,
     crate::codegen::CodeAccumulator,
+    crate::codegen::FfiAccumulator,
 );
 
 #[salsa::input]
@@ -44,6 +47,8 @@ pub struct ModuleSource {
     id: ModuleId,
     #[return_ref]
     contents: Option<(PathBuf, String)>,
+    #[return_ref]
+    ffi_contents: Option<(PathBuf, String)>,
 }
 
 #[salsa::accumulator]
@@ -338,12 +343,22 @@ impl Database {
         filename: PathBuf,
         contents: String,
     ) -> Result<ModuleId, ModuleNameNotSpecified> {
+        self.add_source_file_with_ffi(filename, contents, None)
+    }
+
+    pub fn add_source_file_with_ffi(
+        &mut self,
+        filename: PathBuf,
+        contents: String,
+        ffi_contents: Option<(PathBuf, String)>,
+    ) -> Result<ModuleId, ModuleNameNotSpecified> {
         if let Some(module_name) = parser::parse_module_name(&contents) {
             let module_id = ModuleId::new(self, module_name.clone());
             let source_file = self.module_source(module_id);
             source_file
                 .set_contents(self)
                 .to(Some((filename, contents)));
+            source_file.set_ffi_contents(self).to(ffi_contents);
             Ok(module_id)
         } else {
             Err(ModuleNameNotSpecified)
@@ -370,7 +385,7 @@ impl Db for Database {
     fn module_source(&self, module: ModuleId) -> ModuleSource {
         match self.module_sources.entry(module.name(self)) {
             Entry::Occupied(entry) => *entry.get(),
-            Entry::Vacant(entry) => *entry.insert(ModuleSource::new(self, module, None)),
+            Entry::Vacant(entry) => *entry.insert(ModuleSource::new(self, module, None, None)),
         }
     }
 }

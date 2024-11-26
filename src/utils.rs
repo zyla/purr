@@ -1,4 +1,4 @@
-use anyhow::format_err;
+use anyhow::Context;
 use std::path::PathBuf;
 use std::{fs::File, io::Read};
 
@@ -12,9 +12,27 @@ pub fn load_files(db: &mut crate::Database, files: Vec<PathBuf>) {
 
 pub fn process_file(db: &mut crate::Database, filename: PathBuf) -> anyhow::Result<()> {
     let mut contents = String::new();
-    File::open(&filename)?.read_to_string(&mut contents)?;
-    db.add_source_file(filename, contents)
-        .map_err(|_| format_err!("Invalid module name"))?;
+
+    File::open(&filename)
+        .with_context(|| format!("Failed to open file: {:?}", filename))?
+        .read_to_string(&mut contents)
+        .with_context(|| format!("Failed to read file: {:?}", filename))?;
+
+    let mut ffi_filename = filename.clone();
+    ffi_filename.set_extension("js");
+
+    let ffi_contents = if let Ok(mut ffi_file) = File::open(&ffi_filename) {
+        let mut ffi_contents = String::new();
+        ffi_file
+            .read_to_string(&mut ffi_contents)
+            .with_context(|| format!("Failed to read ffi file: {:?}", ffi_filename))?;
+        Some((ffi_filename, ffi_contents))
+    } else {
+        None
+    };
+
+    db.add_source_file_with_ffi(filename, contents, ffi_contents)
+        .map_err(|_| anyhow::format_err!("Invalid module name"))?;
     Ok(())
 }
 
